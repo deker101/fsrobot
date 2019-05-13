@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 from http.cookies import SimpleCookie as cookie
 from io import BytesIO,StringIO
 from PIL import Image 
@@ -24,7 +25,10 @@ html_bottom = """</body>
 """
 worlds = dict()
 
-class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+  """Handle requests in a separate thread."""
+    
+class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
   sessioncookies = {} 
   # GET
   def _session_cookie(self,forcenew=False):  
@@ -49,10 +53,6 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
     self._session_cookie()
     sname = self.sessionidmorsel.value
     
-    self.send_response(301)
-    self.send_header('Location','/')
-    self.end_headers()
-
     #print ('path = ', self.path)
     if (sname in worlds):
         content_length = int(self.headers['Content-Length']) # <--- Gets the size of data
@@ -83,16 +83,17 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
             robot = worlds[sname].robots[rid]
             worlds[sname].robots.remove(robot)
         if post_data.startswith('mapimg'):
-            post_data = post_data.split('=')
-            if (post_data[0] == 'mapimg'):
-                worlds[sname].load_map(post_data[1])
-            return
+            t = post_data.split('=')
+            if (t[0] == 'mapimg'):
+                worlds[sname].load_map(t[1])
         if post_data.startswith('mapclick'):
-            post_data = post_data.replace('&','=').split('=')
+            t = post_data.replace('&','=').split('=')
             rr = RRobot()
-            rpos = (int(post_data[1]),int(post_data[3]))
+            rpos = (int(t[1]),int(t[3]))
             worlds[sname].spawn_robot(rr,rpos)
-            return
+    self.send_response(301)
+    self.send_header('Location','/')
+    self.end_headers()            
   
   def do_GET(self):
         self._session_cookie()  
@@ -228,7 +229,7 @@ def run():
   # Server settings
   # Choose port 8080, for port 80, which is normally used for a http server, you need root access
   server_address = ('', 8080)
-  httpd = HTTPServer(server_address, testHTTPServer_RequestHandler)
+  httpd = ThreadedHTTPServer (server_address, HTTPServer_RequestHandler)
   print('running server...')
   httpd.serve_forever()
 
