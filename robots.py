@@ -40,7 +40,7 @@ def decart(pol):
 
 class RWorld():
     def __init__(self):
-        print ('Init world')
+        #print ('Init world')
         self.robots = []
         self.__global_map = RMap()
         self.__maxrobots = 5
@@ -177,6 +177,7 @@ class RRobot():
         self.fov=self.settings['FOV'][0]
         self.speed=self.settings['speed'][0]
         self.safe_dist=self.settings['safe_dist'][0]
+        self.gpserr=self.settings['gpserr'][0]
 
     def update(self, p, val):
         if not p in self.settings:
@@ -215,10 +216,12 @@ class RRobot():
         self.fov=self.settings['FOV'][0]
         self.speed=self.settings['speed'][0]
         self.safe_dist=self.settings['safe_dist'][0]
+        self.gpserr=self.settings['gpserr'][0]
         
         return
             
     def step(self):
+        #print ("Robot settings: ", self.settings)
         self.getpos()
         self.lookout()
         prog = self.__prog
@@ -291,95 +294,48 @@ class RRobot():
             #print ("param",param, "pos",self.__pos, "last move:",self.move)
             cazm = param[1]
             if prog[6]=='l':
-                aturn = list(range(5, 90, 5))
-                amain = list(range(0,-185,-5))
+                fturnlist = list(range(0, 91, 10))
+                bturnlist = list(range(0,-181,-10))
             else:
-                aturn = list(range(-5, -90, -5))
-                amain = list(range(0, 185, 5))
+                fturnlist = list(range(0, -91, -10))
+                bturnlist = list(range(0, 181, 10))
            
-            distances = [self.speed]#list(range(self.safe_dist,self.speed,self.safe_dist))
-            #print (azms)
-            check1 = {}
-            check2 = {}
-            if (param[2] == 0):
-                for a in aturn:
-                    max_free_vision = 0
-                    #dang_area = []
-                    for d in distances:
-                        dir = (d,a+cazm)
-                        check_pos = tadd(decart(dir),self.__pos)
-                        #print ("check_pos",check_pos)
-                        dang_area = self.__lmap.get_part(check_pos,self.safe_dist)
-                        #print (a,d,not dang_area)
-                        if (not dang_area):
-                            if d > max_free_vision:
-                                max_free_vision=d
-                                
-                            check1[a+cazm]=max_free_vision
-                            #print (a+cazm,d)
-                        else:
-                            #print ("break",a+cazm,d)
-                            break
-                            
-            for a in amain:
-                max_free_vision = 0
-                #dang_area = []
-                for d in distances:
-                    dir = (d,a+cazm)
-                    check_pos = tadd(decart(dir),self.__pos)
-                    #print ("check_pos",check_pos)
-                    dang_area = self.__lmap.get_part(check_pos,self.safe_dist)
-                    #print (a,d,not dang_area)
-                    if (not dang_area):
-                        if d > max_free_vision:
-                            max_free_vision=d
-                            
-                        check2[a+cazm]=max_free_vision
-                        #print (a+cazm,d)
+            #print ("param",param)
+
+            fturn = (0,0)
+            bturn = (0,0)
+
+            if (param[2] == 0): #not first try
+                #print ("fturn",fturnlist)        
+                for f in fturnlist:
+                    dir = cazm + f
+                    check_pos = tadd(decart((self.speed,dir)),self.__pos)
+                    dang_area = self.__lmap.get_part(check_pos,self.safe_dist+self.gpserr)
+                    #print ("fturn ",dir,"check_pos",check_pos,"mv",(self.speed,dir),"dang_area", len(dang_area))
+                    if len(dang_area) == 0:
+                        fturn = (self.speed,dir)
                     else:
-                        #print ("break",a+cazm,d)
                         break
-            #print ("radar",amain)
-            max_free_vision=0
-           
-            min_free_vision = self.fov+1
-            max_free_vision = self.speed
-            rmove=(0,0)
-            tmove=(0,0)
-            
-            #print ("check1",check1)
-            for m in check1:
-                #print ("tr", m, check1[m],max_free_vision)
-                if check1[m] >= max_free_vision:
-                    if max_free_vision<self.speed:
-                        tmove=(max_free_vision,m)
-                    else:
-                        tmove=(self.speed,m)
-                    max_free_vision = check1[m]
-                else:
-                    break
-            
-            for m in check2:
-                #print ("radar", m, check2[m])
-                if check2[m] < min_free_vision:
-                    if min_free_vision<self.speed:
-                        rmove=(min_free_vision,m)
-                    else:
-                        rmove=(self.speed,m)
-                    min_free_vision = check2[m]
-                #else:
-                #    break;
-            if param[2] == 1:
-                param[2] = 0
-                tmove=(0,0)
-            #print ("rt!",tmove,rmove)
-            #tmove=(0,0)
-            if tmove !=(0,0):
-                param[1]=tmove[1]
-                self.move=tmove
             else:
-                param[1]=rmove[1]
-                self.move=rmove            
+                param[2]=0
+                
+            for f in bturnlist:
+                #print ("bturn",bturnlist)
+                dir = cazm + f
+                check_pos = tadd(decart((self.speed,dir)),self.__pos)
+                dang_area = self.__lmap.get_part(check_pos,self.safe_dist+self.gpserr)
+                #print ("bturn",dir,"check_pos",check_pos,"mv",(self.speed,dir),"dang_area", len(dang_area))
+                if len(dang_area) == 0:
+                    bturn = (self.speed,dir)
+                    break
+
+            #print ("Fturn",fturn, "Bturn",fturn)
+            if fturn !=(0,0):
+                param[1]=fturn[1]
+                self.move=fturn
+            else:
+                param[1]=bturn[1]
+                self.move=bturn            
             self.__param=param
                 
             #print ("turn right:", rmove)
